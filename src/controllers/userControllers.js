@@ -1,0 +1,50 @@
+import mongose from 'mongoose';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { UserSchema } from '../models/userModel';
+
+const User = mongose.model('User', UserSchema);
+
+export const register = (req, res) => {
+    const newUser = new User(req.body);
+    //Create a value for the hashPassword based on the password that we've passed in
+    newUser.hashPassword = bcrypt.hashSync(req.body.password, 10);
+    newUser.save((err, user) => {
+        if (err){
+            return res.status(400).send({
+                message: err
+            })
+        } else {
+            //Hide the hashPassword in the response
+            user.hashPassword = undefined;
+            return res.json(user);
+        }
+    })
+}
+
+export const login = (req, res) => {
+    User.findOne({
+        email: req.body.email
+    }, (err, user) => {
+        if (err) throw err;
+        if(!user){
+            return res.status(401).json({message: 'Authentication failed. No user found!'});
+        } else if (user) {
+            if(!user.comparePassword(req.body.password, user.hashPassword)) {
+                return res.status(401).json({message: 'Authentication failed. Wrong password!'});
+            } else {
+                return res.json({token: jwt.sign({email: user.email, username: user.username, _id: user.id}, 'RESTFULAPIs')});
+            }
+        }
+    });
+}
+
+export const loginRequired = (req, res, next) => {
+    if( req.user ){
+        next();
+    } else{
+        return res.status(401).json({message: 'Unauthorized user!'});
+    }
+    
+}
+
